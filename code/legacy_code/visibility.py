@@ -13,7 +13,6 @@ class Visibility:
         self.radius = radius_m
         self.observer_height = observer_height
         self.target_height = target_height
-    def 
     def viewshed(self,xObserver, yObserver, radius, observer_height , target_height, dem_data, dem_array, transform):
         #get base data from raster in order to preform conversion calculations
         xOrigin = transform[0]
@@ -42,7 +41,7 @@ class Visibility:
         #get pixels in the perimeter of the viewshed
         for r, c in column_stack(circle_perimeter(row, col, radius_px*3)):
             #calculate line of sight at each pixle, pass output and get a new one back each time
-            output = line_of_sight(row, col, height0, r, c, target_height, radius_px, dem_array, output)
+            output = self.line_of_sight(row, col, height0, r, c, target_height, radius_px, dem_array, output)
         
         #set all non-iterated values as unseen
         output[output == -1] = 0
