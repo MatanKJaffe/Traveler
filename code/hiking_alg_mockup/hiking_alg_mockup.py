@@ -1,6 +1,7 @@
-
-from osgeo import gdal, osr
-import os
+"#!/usr/bin/env python"
+#-*- coding: utf-8- -*-
+# from osgeo import gdal, osr
+# import os
 import geopandas as gpd
 import rasterio
 import numpy as np
@@ -17,6 +18,7 @@ from haversine import haversine, Unit
 from rasterio.sample import sample_gen
 
 import rasterio
+
 from rasterio.vrt import WarpedVRT
 from rasterio.mask import mask
 from shapely.geometry import LineString, mapping, Point, box
@@ -60,7 +62,8 @@ class Trail(object):
         self.line_length = self.gdf["geometry"].length
         self.get_line_lengths()
         self.calculate_angle_between_all_lines()
-        self.get_raster_data()  
+        self.get_raster_data()
+        self.snap_raster_points_to_line()
           
     def segment_linestring(self, line):
         """
@@ -186,7 +189,7 @@ class Trail(object):
                 
         self.angels = gpd.GeoDataFrame()
         self.angels["angle"] = angels
-        self.angels["angle"] = 180-self.angels["angle"]
+        self.angels["angle"] = 180 - self.angels["angle"]
 
 
         
@@ -209,56 +212,51 @@ class Trail(object):
         line_length.extend([haversine(coords[i], coords[i+1], Unit.METERS) for i in range(len(coords) - 1)])
         self.line_length_haversine = line_length
 
+    def pixel_to_coords(self, pixel_x, pixel_y, transform):
+        #decompose geotransform
+        xoffset, px_w, rot1, yoffset, px_h, rot2 = transform
+        # supposing x and y are your pixel coordinate this 
+        # is how to get the coordinate in space.
+        posX = px_w * pixel_x + rot1 * pixel_y + xoffset
+        posY = rot2 * pixel_x + px_h * pixel_y + yoffset
 
-    def raster_xy_to_latlon(self, x, y, geotransform):
-        # Calculate latitude and longitude of top-left corner
-        lon_tl = geotransform[0] 
-        lat_tl = geotransform[3] 
-        # Calculate latitude and longitude of bottom-right corner
-        lon_br = geotransform[0] + geotransform[1] * geotransform[0] + geotransform[2] * geotransform[1]
-        lat_br = geotransform[3] + geotransform[4] * geotransform[3] + geotransform[5] 
-        # Interpolate to get latitude and longitude of pixel in question
-        lon = lon_tl + x * (lon_br - lon_tl) / geotransform[1]
-        lat = lat_tl + y * (lat_br - lat_tl) / geotransform[5]
-        
-        return Point(lon, lat)
+        # shift to the center of the pixel
+        posX += px_w / 2.0
+        posY += px_h / 2.0
+
+        return Point(posX, posY)
 
     def get_raster_data(self):
         # Open raster file
         with rasterio.open(self.raster_file) as src:
             # Open VRT file as a WarpedVRT object
             with WarpedVRT(src) as vrt:
+                # Get bounds of raser object
                 self.raster_bounds = vrt.bounds
-                # Get bounds of linestring
                 self.get_raster_points_intersecting_linestring(self.full_line, vrt)
+                
                 # coordinates are [lon, lat], flip for rasterio
                 self.get_raster_data_of_nodes(vrt)
                 
     def get_raster_points_intersecting_linestring(self, linestring, dataset):
         # Get bounds of linestring
         bounds = linestring.bounds
-        
         # Mask raster with linestring geometry
         out_image, out_transform = mask(dataset, [mapping(linestring)], crop=True, all_touched=True)
-
         #get coordinates of intersecting raster cells
         coords = np.argwhere(out_image != -9999)[:,[1,2]]
         
         # Get coordinates of pixels with value > 0
         x_res, y_res = out_transform.a, out_transform.e
         x_min, y_min, x_max, y_max = bounds
-        
         #set geotransform      
-        geotransform = (x_min, x_res, 0, y_max, 0, y_res)
-        
+        geotransform = (x_min, x_res, 0, y_max, y_res, 0)
         #generate point from array coordinates
-        point_coords = [self.raster_xy_to_latlon(x[0], x[1], geotransform) for x in coords] 
+        point_coords = [self.pixel_to_coords(x[1], x[0], geotransform) for x in coords] 
         self.raster_points = GeoSeries(point_coords)
 
-    def snap_to_line(point, line):
-        point_snapped = line.interpolate(line.project(point))
-        return point_snapped
-
+    def snap_raster_points_to_line(self):
+        self.snaped_raster_points = GeoSeries(linestring.interpolate(linestring.project(point)) for point in line_map.raster_points).set_crs(3857)
 
 if __name__ == "__main__":
     shapes = gpd.read_file("/Users/osn/Code_Library/Traveler/code/website_mockup/hiker_site/static/edges/aosta_valley_italy.geojson")
