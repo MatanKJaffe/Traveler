@@ -138,6 +138,8 @@ dmypy.json
 .tiff
 .tif
 .geojson
+.vrt
+*.vrt
 *.tiff
 *.tif
 *.geojson
@@ -147,5 +149,4 @@ dmypy.json
 #package
 */**.pkg
 */**.vrt
-
 data/

@@ -1,7 +1,6 @@
 "#!/usr/bin/env python"
 #-*- coding: utf-8- -*-
 from numpy import ndarray, array, pad, s_, ones, zeros, ndenumerate, isnan
-from numba import jit
 
 class AnomalyIndex:
     """
@@ -175,7 +174,7 @@ class AnomalyIndex:
 
         return AnomI_class_array
 
-    def execute(self, array:ndarray ,Radius_px_lst:list , padding:bool = True, sensitivity:float = 0.25) -> ndarray :
+    def execute(self, array:ndarray ,Radius_px_lst:list = [300,2000], padding:bool = True, sensitivity:float = 0.25) -> ndarray :
         """
         Funcution running the AnomalyIndex algorithm
         
@@ -209,5 +208,8 @@ class AnomalyIndex:
         #resize output as relating to padding
         if self.padding is True:
             return anomi_array[:self.orig_shape[0],:self.orig_shape[1]]
-
+        
+        anomi_array = anomi_array.astype(np.uint8)
         return anomi_array
+
+#TODO: add legend object to class

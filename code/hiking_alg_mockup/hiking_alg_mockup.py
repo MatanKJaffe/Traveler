@@ -64,7 +64,7 @@ class Trail(object):
         self.calculate_angle_between_all_lines()
         self.get_raster_data()
         self.snap_raster_points_to_line()
-          
+        
     def segment_linestring(self, line):
         """
         Function for segmenting linestring  into individual straight lines
@@ -188,12 +188,12 @@ class Trail(object):
                 angels.append(angle)
                 
         self.angels = gpd.GeoDataFrame()
-        self.angels["angle"] = angels
+        self.angels["angle"] = np.ceil(np.array(angels))
         self.angels["angle"] = 180 - self.angels["angle"]
 
 
         
-    def get_raster_data_of_nodes(self, vrt):
+    def get_raster_data_of_nodes(self, vrt, points, out_var):
         """
         Get the elevation profile (distance vs. altitude) of a path segment from the list of coordinates.
         Args:
@@ -202,9 +202,9 @@ class Trail(object):
         Returns: The distance (in meters) and elevation (in meters) vectors.
         """
         # coordinates are [lon, lat], flip for rasterio
-        coords = [[c.x, c.y] for c in self.nodes]
+        coords = [[c.x, c.y] for c in points]
         # convert meters to feet and use rasterio.sample.sample_gen to query each point
-        self.node_elev = [e[0] for e in sample_gen(vrt, coords)]
+        out_var = [e[0] for e in sample_gen(vrt, coords)]
 
     def get_line_lengths(self):
         coords = [[c.x, c.y] for c in self.nodes.set_crs(3857).to_crs(4326)]
@@ -236,7 +236,10 @@ class Trail(object):
                 self.get_raster_points_intersecting_linestring(self.full_line, vrt)
                 
                 # coordinates are [lon, lat], flip for rasterio
-                self.get_raster_data_of_nodes(vrt)
+                self.nodes_elev = None
+                self.raster_points_elev =  None
+                self.nodes_elev = self.get_raster_data_of_nodes(vrt, self.nodes, )
+                self.get_raster_data_of_nodes(vrt, self.raster_points, self.raster_points_elev)
                 
     def get_raster_points_intersecting_linestring(self, linestring, dataset):
         # Get bounds of linestring
@@ -245,7 +248,7 @@ class Trail(object):
         out_image, out_transform = mask(dataset, [mapping(linestring)], crop=True, all_touched=True)
         #get coordinates of intersecting raster cells
         coords = np.argwhere(out_image != -9999)[:,[1,2]]
-        
+        self.raster_xy_coords = coords
         # Get coordinates of pixels with value > 0
         x_res, y_res = out_transform.a, out_transform.e
         x_min, y_min, x_max, y_max = bounds
@@ -257,6 +260,7 @@ class Trail(object):
 
     def snap_raster_points_to_line(self):
         self.snaped_raster_points = GeoSeries(linestring.interpolate(linestring.project(point)) for point in line_map.raster_points).set_crs(3857)
+
 
 if __name__ == "__main__":
     shapes = gpd.read_file("/Users/osn/Code_Library/Traveler/code/website_mockup/hiker_site/static/edges/aosta_valley_italy.geojson")
